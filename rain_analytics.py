@@ -11,19 +11,19 @@ daily_dataframe = pd.read_csv("daily_weather_data.csv")
 # Convert date column to datetime format
 daily_dataframe["date"] = pd.to_datetime(daily_dataframe["date"])
 
+# Reverse the data (most recent dates first)
+daily_dataframe = daily_dataframe.sort_values("date", ascending=False)
+
 # Streamlit app
-st.title("🌦️ Weather Data Visualization")
+st.subheader("🌦️ Weather Data Visualization")
 
 # Dropdown to select the variable to visualize
 variable_options = [col for col in daily_dataframe.columns[1:] if col != "weather_code"]
-selected_variable = st.selectbox("📊 Select a variable to visualize", variable_options)
+selected_variable = st.selectbox("📊 Select a variable to visualize", ["Select a variable"] + variable_options)
 
 # Function to plot a smooth and visually interesting curve
 def plot_variable(variable):
     fig, ax = plt.subplots(figsize=(10, 5), facecolor="#f4f4f8")  # Light background
-
-    # Sort data by date (in case it's unsorted)
-    daily_dataframe.sort_values("date", inplace=True)
 
     # Get x and y values
     x = np.arange(len(daily_dataframe))  # Use index as x-axis for interpolation
@@ -38,7 +38,7 @@ def plot_variable(variable):
         ax.scatter(daily_dataframe["date"], y, color="#ff6361", alpha=0.7, s=50, label="Raw Data")  # Stylish scatter
         ax.plot(pd.to_datetime(np.interp(x_smooth, x, daily_dataframe["date"].astype(int))),
                 y_smooth, linestyle="-", linewidth=3, color="#003f5c", alpha=0.9, label="Smoothed Curve", 
-                path_effects=[plt.matplotlib.patheffects.withStroke(linewidth=5, foreground='white')])  # Shadow effect
+                path_effects=[path_effects.withStroke(linewidth=5, foreground='white')])  # Shadow effect
     else:
         ax.plot(daily_dataframe["date"], y, marker="o", linestyle="-", color="#58508d", label="Raw Data")
 
@@ -55,5 +55,10 @@ def plot_variable(variable):
 
     st.pyplot(fig)
 
-# Show the plot
-plot_variable(selected_variable)
+# Show the plot **only if the user selects a variable**
+if selected_variable != "Select a variable":
+    plot_variable(selected_variable)
+
+    # Display the reversed data after the visualization
+    st.subheader(f"📋 Data for {selected_variable} (Most Recent First)")
+    st.dataframe(daily_dataframe[["date", selected_variable]])
