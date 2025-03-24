@@ -83,3 +83,7 @@ daily_data["wind_speed_10m_max"] = daily_wind_speed_10m_max
 
 daily_dataframe = pd.DataFrame(data = daily_data)
 print(daily_dataframe)
+
+# Save the daily weather data to a CSV file
+daily_dataframe.to_csv("daily_weather_data.csv", index=False)
+print("Daily weather data saved to 'daily_weather_data.csv'")

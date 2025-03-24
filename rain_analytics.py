@@ -1,80 +1,59 @@
-import requests
-import pandas as pd
-import matplotlib.pyplot as plt
 import streamlit as st
-from sklearn.model_selection import train_test_split
-from sklearn.linear_model import LinearRegression
-from sklearn.metrics import mean_absolute_error
+import matplotlib.pyplot as plt
+import pandas as pd
+import numpy as np
+from scipy.interpolate import make_interp_spline
+import matplotlib.patheffects as path_effects
 
-# Step 1: Fetch weather data from Open-Meteo
-API_URL = "https://api.open-meteo.com/v1/forecast"
-params = {
-    "latitude": -1.286389,  # Nairobi, Kenya (change to your location)
-    "longitude": 36.817223,
-    "daily": ["precipitation_sum"],
-    "temperature_unit": "celsius",
-    "wind_speed_unit": "kmh",
-    "precipitation_unit": "mm",
-    "timezone": "Africa/Nairobi",
-    "past_days": 60  # Get past 60 days of rainfall data
-}
-response = requests.get(API_URL, params=params)
-data = response.json()
+# Load the data
+daily_dataframe = pd.read_csv("daily_weather_data.csv")
 
-# Step 2: Convert to DataFrame
-df = pd.DataFrame({
-    "date": pd.to_datetime(data["daily"]["time"]),
-    "rainfall": data["daily"]["precipitation_sum"]
-})
+# Convert date column to datetime format
+daily_dataframe["date"] = pd.to_datetime(daily_dataframe["date"])
 
-# Step 3: Prepare data for ML model
-df["day"] = df["date"].dt.day
-X = df[["day"]]  # Simple feature: Day of the month
-y = df["rainfall"]
+# Streamlit app
+st.title("🌦️ Weather Data Visualization")
 
-# Step 4: Train-Test Split
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+# Dropdown to select the variable to visualize
+variable_options = [col for col in daily_dataframe.columns[1:] if col != "weather_code"]
+selected_variable = st.selectbox("📊 Select a variable to visualize", variable_options)
 
-# Step 5: Train Linear Regression Model
-model = LinearRegression()
-model.fit(X_train, y_train)
+# Function to plot a smooth and visually interesting curve
+def plot_variable(variable):
+    fig, ax = plt.subplots(figsize=(10, 5), facecolor="#f4f4f8")  # Light background
 
-# Step 6: Make Predictions
-y_pred = model.predict(X_test)
+    # Sort data by date (in case it's unsorted)
+    daily_dataframe.sort_values("date", inplace=True)
 
-# Step 7: Evaluate Model
-mae = mean_absolute_error(y_test, y_pred)
+    # Get x and y values
+    x = np.arange(len(daily_dataframe))  # Use index as x-axis for interpolation
+    y = daily_dataframe[variable].values
 
-# Step 8: Streamlit App
-st.title("🌦️ Rainfall Prediction Dashboard")
-st.write("This application provides insights into rainfall trends and predictions.")
+    # Smooth curve using spline interpolation
+    if len(x) > 3:
+        x_smooth = np.linspace(x.min(), x.max(), 300)
+        spline = make_interp_spline(x, y, k=3)
+        y_smooth = spline(x_smooth)
 
-# Show Rainfall Data Table
-st.subheader("📋 Rainfall Data (Past 60 Days)")
-st.dataframe(df)
+        ax.scatter(daily_dataframe["date"], y, color="#ff6361", alpha=0.7, s=50, label="Raw Data")  # Stylish scatter
+        ax.plot(pd.to_datetime(np.interp(x_smooth, x, daily_dataframe["date"].astype(int))),
+                y_smooth, linestyle="-", linewidth=3, color="#003f5c", alpha=0.9, label="Smoothed Curve", 
+                path_effects=[plt.matplotlib.patheffects.withStroke(linewidth=5, foreground='white')])  # Shadow effect
+    else:
+        ax.plot(daily_dataframe["date"], y, marker="o", linestyle="-", color="#58508d", label="Raw Data")
 
-# Show Model Accuracy
-st.subheader("📊 Model Performance")
-st.write(f"Mean Absolute Error: {mae:.2f} mm")
+    ax.set_title(f"📈 {variable} Over Time", fontsize=16, fontweight="bold", color="#333333")
+    ax.set_xlabel("Date", fontsize=12, fontweight="bold", color="#555555")
+    ax.set_ylabel(variable, fontsize=12, fontweight="bold", color="#555555")
+    ax.legend(frameon=False, loc="best")
 
-# Show Visuals with Explanation
-st.subheader("📈 Rainfall Trend Analysis")
-fig, ax = plt.subplots(figsize=(10, 5))
-ax.scatter(df["day"], df["rainfall"], label="Actual Data", alpha=0.6)
-ax.plot(X_test, y_pred, color='red', label="Predicted Trend")
-ax.set_xlabel("Day of the Month")
-ax.set_ylabel("Rainfall (mm)")
-ax.set_title("Rainfall Prediction using Linear Regression")
-ax.legend()
-st.pyplot(fig)
+    # Remove gridlines for a cleaner look
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+    ax.spines["left"].set_color("#bbbbbb")
+    ax.spines["bottom"].set_color("#bbbbbb")
 
-# Step 9: Recommendations based on Rainfall Prediction
-st.subheader("🌱 Recommendations for Farmers")
-if mae > 5:
-    st.warning("⚠️ Prediction accuracy is low. Consider using additional features like humidity and temperature.")
-if df["rainfall"].mean() > 10:
-    st.success("🌧️ Expect heavy rainfall. Farmers should prepare for irrigation drainage and soil erosion control.")
-elif df["rainfall"].mean() < 2:
-    st.info("☀️ Dry conditions expected. Consider irrigation or drought-resistant crops.")
-else:
-    st.info("🌤️ Moderate rainfall expected. Plan farming activities accordingly.")
+    st.pyplot(fig)
+
+# Show the plot
+plot_variable(selected_variable)
